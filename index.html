@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ristória: o jogo da resenha</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧦</text></svg>">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script>window.react = window.React;</script>
+<script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>html,body{margin:0;background:#020617}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const { Ghost, Skull, Crown, Rocket, Flame, Key, Map: MapIcon, Sword, Pizza, Bomb, Eye, Moon, Zap, HeartCrack, Trophy, Camera, Car, Plane, Anchor, Compass, Lock, Glasses, Cat, Dog, Bug, Coffee, Music, Umbrella, Watch, Gift, Magnet, Feather, Bell, Axe, Shield, Sparkles, CloudLightning, Snowflake, Sun, Trees, Mountain, Tent, Utensils, Wine, Gamepad2, Headphones, Smartphone, Trash2, Wrench, Hammer, Lightbulb, Hourglass, Footprints, Copy, Users, Play, Send, Check, ArrowLeft, Dices, BookOpen, Wifi, Save, Clock } = LucideReact;
+
+
+/* ---------- Easter egg: meia Lupo ---------- */
+function LupoSock({ className = "w-full h-full" }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-label="Meia Lupo">
+      <defs>
+        <clipPath id="sockClip">
+          <path d="M22 4 H42 V34 Q42 39 47 41 L56 45 Q61 49 57 54 H30 Q21 54 21 45 Z" />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#sockClip)">
+        <rect x="0" y="0" width="64" height="64" fill="#f8fafc" />
+        {[10, 18, 26, 34, 42, 50].map((y, i) => (
+          <rect key={y} x="0" y={y} width="64" height="4" fill={i % 2 ? "#f97316" : "#4f46e5"} />
+        ))}
+        <rect x="0" y="4" width="64" height="5" fill="#dc2626" />
+      </g>
+      <path d="M22 4 H42 V34 Q42 39 47 41 L56 45 Q61 49 57 54 H30 Q21 54 21 45 Z" fill="none" stroke="#1e293b" strokeWidth="2" strokeLinejoin="round" />
+      <rect x="22" y="22" width="20" height="9" rx="1.5" fill="#fbbf24" stroke="#1e293b" strokeWidth="1.2" />
+      <text x="32" y="29.2" textAnchor="middle" fontSize="6.4" fontWeight="900" fill="#1e293b" fontFamily="Arial Black, Arial, sans-serif">LUPO</text>
+    </svg>
+  );
+}
+
+/* ---------- 54 faces: 9 dados x 6 ---------- */
+const LUPO = 53;
+const FACES = [
+  Ghost, Skull, Crown, Rocket, Flame, Key, MapIcon, Sword, Pizza, Bomb, Eye, Moon, Zap, HeartCrack, Trophy, Camera,
+  Car, Plane, Anchor, Compass, Lock, Glasses, Cat, Dog, Bug, Coffee, Music, Umbrella, Watch, Gift, Magnet, Feather,
+  Bell, Axe, Shield, Sparkles, CloudLightning, Snowflake, Sun, Trees, Mountain, Tent, Utensils, Wine, Gamepad2,
+  Headphones, Smartphone, Trash2, Wrench, Hammer, Lightbulb, Hourglass, Footprints, LupoSock,
+];
+const COLORS = ["text-orange-600", "text-indigo-700", "text-rose-600", "text-emerald-700", "text-sky-700", "text-fuchsia-700", "text-amber-700", "text-teal-700", "text-violet-700"];
+const AVATARS = ["😎", "🤠", "👻", "🦊", "🐸", "🐙", "🦄", "🤖", "👽", "🐯", "🦉", "🍕"];
+const REACTS = ["😂", "🔥", "😱", "🧦", "💀"];
+const rollDice = () => Array.from({ length: 9 }, (_, i) => i * 6 + Math.floor(Math.random() * 6));
+
+/* ---------- Sons (Web Audio) ---------- */
+let AC;
+const tone = (f, d = 0.12, type = "sine", at = 0, v = 0.15) => {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime + at;
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d);
+  } catch (e) {}
+};
+const SFX = {
+  roll: () => { for (let i = 0; i < 9; i++) tone(180 + Math.random() * 520, 0.06, "square", i * 0.06, 0.07); },
+  tick: () => tone(900, 0.05, "square", 0, 0.06),
+  send: () => [523, 659, 784].forEach((f, i) => tone(f, 0.15, "triangle", i * 0.08)),
+  pop: () => tone(440, 0.1, "triangle", 0, 0.12),
+  win: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", i * 0.12, 0.18)),
+  lupo: () => [392, 523, 659, 784, 988].forEach((f, i) => tone(f, 0.18, "sawtooth", i * 0.07, 0.1)),
+};
+
+/* ---------- Mural (localStorage com fallback em memória) ---------- */
+const mem = { m: [] };
+const loadMural = () => { try { const v = localStorage.getItem("ristoria-mural"); return v ? JSON.parse(v) : mem.m; } catch (e) { return mem.m; } };
+const writeMural = (l) => { mem.m = l; try { localStorage.setItem("ristoria-mural", JSON.stringify(l)); } catch (e) {} };
+const saveToMural = (item) => writeMural([{ ...item, id: Date.now() + Math.random(), date: new Date().toLocaleDateString("pt-BR") }, ...loadMural()].slice(0, 60));
+
+/* ---------- PeerJS ---------- */
+const loadPeer = () => new Promise((res, rej) => {
+  if (window.Peer) return res();
+  const s = document.createElement("script");
+  s.src = "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js";
+  s.onload = res; s.onerror = () => rej(new Error("Não foi possível carregar o PeerJS"));
+  document.head.appendChild(s);
+});
+const genCode = () => Array.from({ length: 5 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
+const shuffle = (a) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/* ---------- UI base ---------- */
+const btn = "rounded-2xl font-extrabold px-5 py-3 transition active:translate-y-1 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2";
+const btnGold = `${btn} bg-amber-400 text-slate-900 hover:bg-amber-300 shadow-[0_5px_0_#c2410c]`;
+const btnGhost = `${btn} bg-white/10 text-white hover:bg-white/20`;
+
+function Die({ id, i = 0, used, onClick, sm, spin }) {
+  const L = id === LUPO, Ic = FACES[id], col = COLORS[Math.floor(id / 6)];
+  return (
+    <button
+      onClick={onClick}
+      aria-label={L ? "Meia Lupo" : `Dado ${Math.floor(id / 6) + 1}`}
+      style={{
+        boxShadow: sm ? "0 3px 0 #a8a29e" : "0 6px 0 #a8a29e, 0 12px 16px rgba(0,0,0,.5)",
+        animation: spin ? `spinIn .7s ${i * 0.07}s both` : undefined,
+      }}
+      className={`relative bg-stone-100 flex items-center justify-center transition ${sm ? "w-9 h-9 rounded-lg p-1" : "w-full aspect-square rounded-2xl p-2 sm:p-3"} ${L ? "ring-4 ring-amber-400 gold-glow" : ""} ${used ? "opacity-40 scale-90" : "hover:-translate-y-0.5"}`}
+    >
+      {L ? <LupoSock /> : <Ic className={`w-full h-full ${col}`} strokeWidth={2.2} />}
+      {used && <Check className="absolute w-2/3 h-2/3 text-emerald-600" strokeWidth={4} />}
+    </button>
+  );
+}
+
+function DiceRow({ dice, used = {}, toggle, spin }) {
+  return (
+    <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 sm:gap-3 max-w-3xl mx-auto" key={spin}>
+      {dice.map((d, i) => <Die key={i} id={d} i={i} spin used={used[i]} onClick={toggle ? () => toggle(i) : undefined} />)}
+    </div>
+  );
+}
+
+const LupoBanner = ({ dice }) => dice.includes(LUPO) ? (
+  <div className="text-center text-amber-300 font-black mt-3 animate-pulse">🧦 A MEIA LUPO APARECEU! Ela precisa entrar na história! 🧦</div>
+) : null;
+
+/* ---------- Home ---------- */
+function Home({ go }) {
+  const [name, setName] = useState("");
+  const [av, setAv] = useState(AVATARS[0]);
+  const [code, setCode] = useState("");
+  const ok = name.trim().length > 0;
+  const me = { name: name.trim() || "Jogador", av };
+  return (
+    <div className="max-w-md mx-auto px-4 py-8 text-center">
+      <h1 className="logo text-6xl sm:text-7xl text-amber-400 -rotate-2">Ristória</h1>
+      <p className="text-orange-300 font-bold mt-3 text-lg">Agora a gente sempre vai ter uma Ristória pra contar!</p>
+      <div className="mt-8 bg-white/5 border border-white/10 rounded-3xl p-5 text-left space-y-4">
+        <div>
+          <label className="text-sm text-slate-300 font-bold">Apelido</label>
+          <input value={name} maxLength={14} onChange={(e) => setName(e.target.value)} placeholder="Como te chamam na resenha?"
+            className="w-full mt-1 rounded-xl bg-slate-900 border border-white/10 px-4 py-3 text-white outline-none focus:border-amber-400" />
+        </div>
+        <div>
+          <label className="text-sm text-slate-300 font-bold">Avatar</label>
+          <div className="grid grid-cols-6 gap-2 mt-1">
+            {AVATARS.map((a) => (
+              <button key={a} onClick={() => setAv(a)} className={`text-2xl rounded-xl py-2 ${av === a ? "bg-amber-400 scale-110" : "bg-slate-900"}`}>{a}</button>
+            ))}
+          </div>
+        </div>
+        <button disabled={!ok} onClick={() => go({ view: "game", role: "host", ...me })} className={`${btnGold} w-full`}><Wifi size={20} />Criar sala online</button>
+        <div className="flex gap-2">
+          <input value={code} maxLength={5} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CÓDIGO"
+            className="w-28 rounded-xl bg-slate-900 border border-white/10 px-3 py-3 text-center tracking-widest font-black text-white outline-none focus:border-amber-400" />
+          <button disabled={!ok || code.length < 4} onClick={() => go({ view: "game", role: "client", joinCode: code, ...me })} className={`${btnGhost} flex-1`}><Users size={20} />Entrar na sala</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => go({ view: "solo", ...me })} disabled={!ok} className={btnGhost}><Dices size={20} />Modo solo</button>
+          <button onClick={() => go({ view: "mural" })} className={btnGhost}><BookOpen size={20} />Mural</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Solo ---------- */
+function Solo({ me, back }) {
+  const [dice, setDice] = useState([]);
+  const [spin, setSpin] = useState(0);
+  const [used, setUsed] = useState({});
+  const [text, setText] = useState("");
+  const [useTimer, setUseTimer] = useState(false);
+  const [left, setLeft] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const end = useRef(0);
+  useEffect(() => {
+    if (!useTimer || !dice.length) return;
+    const t = setInterval(() => { const l = Math.max(0, Math.ceil((end.current - Date.now()) / 1000)); setLeft(l); if (l > 0 && l <= 10) SFX.tick(); }, 1000);
+    return () => clearInterval(t);
+  }, [useTimer, dice, spin]);
+  const roll = () => { setDice(rollDice()); setSpin((s) => s + 1); setUsed({}); setText(""); setSaved(false); end.current = Date.now() + 120000; setLeft(120); SFX.roll(); };
+  useEffect(() => { if (dice.includes(LUPO)) setTimeout(SFX.lupo, 500); }, [spin]);
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      <button onClick={back} className={`${btnGhost} mb-4 !py-2`}><ArrowLeft size={18} />Voltar</button>
+      <h2 className="logo text-3xl text-amber-400 mb-4">Modo solo</h2>
+      {dice.length > 0 && <><DiceRow dice={dice} spin={spin} used={used} toggle={(i) => setUsed({ ...used, [i]: !used[i] })} /><LupoBanner dice={dice} /></>}
+      <div className="flex flex-wrap gap-3 items-center justify-between my-5">
+        <button onClick={roll} className={btnGold}><Dices size={20} />{dice.length ? "Rolar de novo" : "Rolar os 9 dados"}</button>
+        <label className="flex items-center gap-2 text-slate-300 text-sm font-bold"><input type="checkbox" checked={useTimer} onChange={(e) => setUseTimer(e.target.checked)} />Timer de 120s</label>
+        {useTimer && dice.length > 0 && <span className={`font-black text-xl ${left <= 10 ? "text-rose-400" : "text-amber-300"}`}><Clock className="inline mr-1" size={18} />{left}s</span>}
+      </div>
+      {dice.length > 0 && (
+        <>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder="Era uma vez..."
+            className="w-full rounded-2xl bg-slate-900 border border-white/10 p-4 text-white outline-none focus:border-amber-400" />
+          <button disabled={!text.trim() || saved} className={`${btnGold} mt-3`}
+            onClick={() => { saveToMural({ text: text.trim(), dice, author: me.name, av: me.av }); setSaved(true); SFX.send(); }}>
+            <Save size={20} />{saved ? "Salva no Mural!" : "Salvar no Mural da Resenha"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Mural ---------- */
+function Mural({ back }) {
+  const [list, setList] = useState(loadMural());
+  const del = (id) => { const l = list.filter((x) => x.id !== id); writeMural(l); setList(l); };
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      <button onClick={back} className={`${btnGhost} mb-4 !py-2`}><ArrowLeft size={18} />Voltar</button>
+      <h2 className="logo text-3xl text-amber-400 mb-4">Mural da Resenha</h2>
+      {!list.length && <p className="text-slate-400">Ainda não tem nenhuma Ristória aqui. Jogue uma rodada e salve a melhor!</p>}
+      <div className="space-y-4">
+        {list.map((h) => (
+          <div key={h.id} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div className="flex flex-wrap gap-1.5 mb-3">{h.dice.map((d, i) => <Die key={i} id={d} sm />)}</div>
+            <p className="whitespace-pre-wrap text-slate-100">{h.text}</p>
+            <div className="flex justify-between items-center mt-3 text-sm text-slate-400">
+              <span>{h.av} {h.author} • {h.date}</span>
+              <button onClick={() => del(h.id)} aria-label="Apagar" className="hover:text-rose-400"><Trash2 size={16} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Jogo online ---------- */
+function Game({ cfg, back }) {
+  const isHost = cfg.role === "host";
+  const [code, setCode] = useState(cfg.joinCode || "");
+  const [status, setStatus] = useState("Conectando...");
+  const [fatal, setFatal] = useState("");
+  const [S, setS] = useState(null);
+  const [myId, setMyId] = useState("");
+  const [left, setLeft] = useState(0);
+  const [reacts, setReacts] = useState([]);
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+  const [used, setUsed] = useState({});
+  const [myVote, setMyVote] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const peer = useRef(null), conns = useRef({}), hostConn = useRef(null), deadline = useRef(0), myStory = useRef(""), prev = useRef("");
+  const H = useRef({ players: {}, phase: "lobby", dice: [], round: 0, endAt: 0, stories: [], owners: {}, res: [] });
+
+  /* --- lógica do host --- */
+  const pub = () => {
+    const s = H.current, pl = {};
+    Object.entries(s.players).forEach(([id, p]) => (pl[id] = { name: p.name, av: p.av, score: p.score, done: !!p.story, voted: p.vote != null }));
+    return { players: pl, phase: s.phase, dice: s.dice, round: s.round, left: Math.max(0, Math.round((s.endAt - Date.now()) / 1000)), stories: s.stories, res: s.phase === "result" ? s.res : [] };
+  };
+  const push = () => {
+    const p = pub(); setS(p); deadline.current = Date.now() + p.left * 1000;
+    Object.values(conns.current).forEach((c) => c.open && c.send({ t: "state", s: p }));
+  };
+  const addReact = (e) => {
+    const r = { id: Math.random(), e, x: 8 + Math.random() * 80 };
+    setReacts((l) => [...l, r]); setTimeout(() => setReacts((l) => l.filter((x) => x.id !== r.id)), 2600);
+  };
+  const toResult = () => {
+    const s = H.current, tally = {};
+    Object.values(s.players).forEach((p) => { if (p.vote != null) tally[p.vote] = (tally[p.vote] || 0) + 1; });
+    const max = Math.max(0, ...Object.values(tally));
+    s.res = s.stories.map((st) => {
+      const o = s.players[s.owners[st.k]], v = tally[st.k] || 0, win = s.stories.length === 1 || (max > 0 && v === max);
+      if (o) o.score += v + (win ? 3 : 0);
+      return { k: st.k, text: st.text, owner: s.owners[st.k], name: o?.name || "?", av: o?.av || "👤", votes: v, win };
+    }).sort((a, b) => b.votes - a.votes);
+    s.phase = "result"; push();
+  };
+  const toVote = () => {
+    const s = H.current, w = Object.entries(s.players).filter(([, p]) => p.story);
+    s.stories = shuffle(w).map(([id, p], k) => { s.owners[k] = id; return { k, text: p.story }; });
+    if (s.stories.length < 2) return toResult();
+    s.phase = "vote"; push();
+  };
+  const onMsg = (pid, m) => {
+    const s = H.current, p = s.players[pid];
+    if (m.t === "join") { s.players[pid] = { name: String(m.name).slice(0, 14), av: m.av, score: p?.score || 0, story: null, vote: null }; push(); }
+    else if (m.t === "story" && s.phase === "write" && p && !p.story) {
+      const tx = String(m.text || "").trim().slice(0, 1500); if (!tx) return;
+      p.story = tx; push();
+      if (Object.values(s.players).every((x) => x.story)) toVote();
+    } else if (m.t === "vote" && s.phase === "vote" && p && p.vote == null && s.owners[m.k] && s.owners[m.k] !== pid) {
+      p.vote = m.k; push();
+      if (Object.values(s.players).every((x) => x.vote != null)) toResult();
+    } else if (m.t === "react" && REACTS.includes(m.e)) {
+      Object.values(conns.current).forEach((c) => c.open && c.send({ t: "react", e: m.e })); addReact(m.e);
+    }
+  };
+  const start = () => {
+    const s = H.current; s.round++; s.dice = rollDice(); s.phase = "write"; s.endAt = Date.now() + 120000; s.stories = []; s.owners = {}; s.res = [];
+    Object.values(s.players).forEach((p) => { p.story = null; p.vote = null; }); push();
+  };
+  const send = (m) => (isHost ? onMsg("host", m) : hostConn.current?.open && hostConn.current.send(m));
+
+  /* --- conexão --- */
+  useEffect(() => {
+    let dead = false, to;
+    const fail = (m) => !dead && setFatal(m);
+    loadPeer().then(() => {
+      if (dead) return;
+      if (isHost) {
+        const tryHost = (n) => {
+          const c = genCode(), p = new window.Peer("ristoria-" + c);
+          peer.current = p;
+          p.on("open", (id) => { if (dead) return; setCode(c); setMyId("host"); setStatus("Sala aberta"); H.current.players.host = { name: cfg.name, av: cfg.av, score: 0, story: null, vote: null }; push(); });
+          p.on("connection", (conn) => {
+            conn.on("open", () => { conns.current[conn.peer] = conn; });
+            conn.on("data", (m) => onMsg(conn.peer, m));
+            conn.on("close", () => {
+              delete conns.current[conn.peer]; delete H.current.players[conn.peer]; const s = H.current;
+              push();
+              if (s.phase === "write" && Object.values(s.players).every((x) => x.story)) toVote();
+              else if (s.phase === "vote" && Object.values(s.players).every((x) => x.vote != null)) toResult();
+            });
+          });
+          p.on("error", (e) => { if (e.type === "unavailable-id" && n < 4) { p.destroy(); tryHost(n + 1); } else fail("Erro ao criar sala: " + e.type); });
+        };
+        tryHost(0);
+      } else {
+        const p = new window.Peer(); peer.current = p;
+        p.on("open", (id) => {
+          setMyId(id);
+          const c = p.connect("ristoria-" + cfg.joinCode, { reliable: true }); hostConn.current = c;
+          to = setTimeout(() => fail("Sala não encontrada. Confira o código."), 12000);
+          c.on("open", () => { clearTimeout(to); setStatus("Conectado"); c.send({ t: "join", name: cfg.name, av: cfg.av }); });
+          c.on("data", (m) => {
+            if (m.t === "state") { setS(m.s); deadline.current = Date.now() + m.s.left * 1000; }
+            else if (m.t === "react") addReact(m.e);
+          });
+          c.on("close", () => fail("O host saiu da sala."));
+        });
+        p.on("error", (e) => fail(e.type === "peer-unavailable" ? "Sala não encontrada. Confira o código." : "Erro de conexão: " + e.type));
+      }
+    }).catch((e) => fail(e.message));
+    const timer = setInterval(() => { if (isHost) { const s = H.current; if (s.phase === "write" && Date.now() >= s.endAt) toVote(); } }, 500);
+    return () => { dead = true; clearTimeout(to); clearInterval(timer); try { peer.current?.destroy(); } catch (e) {} };
+  }, []);
+
+  /* --- efeitos de fase / cronômetro --- */
+  useEffect(() => {
+    if (!S) return;
+    const key = S.phase + S.round; if (key === prev.current) return; prev.current = key;
+    if (S.phase === "write") { setText(""); setSent(false); setUsed({}); setMyVote(null); setSaved(false); myStory.current = ""; SFX.roll(); if (S.dice.includes(LUPO)) setTimeout(SFX.lupo, 500); }
+    else if (S.phase === "vote") SFX.pop();
+    else if (S.phase === "result") S.res.some((r) => r.win && r.owner === myId) ? SFX.win() : SFX.pop();
+  }, [S]);
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (S?.phase !== "write") return;
+      const l = Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000)); setLeft(l); if (l > 0 && l <= 10) SFX.tick();
+    }, 1000);
+    return () => clearInterval(t);
+  }, [S?.phase]);
+
+  const copy = () => { try { navigator.clipboard.writeText(code); } catch (e) {} SFX.pop(); };
+  const submit = () => { const t = text.trim(); if (!t) return; myStory.current = t; send({ t: "story", text: t }); setSent(true); SFX.send(); };
+  const vote = (k) => { setMyVote(k); send({ t: "vote", k }); SFX.pop(); };
+
+  if (fatal) return <div className="max-w-md mx-auto p-8 text-center"><p className="text-rose-300 font-bold mb-4">{fatal}</p><button onClick={back} className={btnGold}>Voltar</button></div>;
+  const players = S ? Object.entries(S.players) : [];
+  const winner = S?.res.find((r) => r.win);
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-4 pb-24">
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <button onClick={back} className={`${btnGhost} !py-2 !px-3`}><ArrowLeft size={18} /></button>
+        <div className="flex items-center gap-2 bg-white/5 rounded-2xl px-4 py-2">
+          <span className="text-slate-400 text-sm">Sala</span>
+          <span className="font-black tracking-widest text-amber-400 text-xl">{code || "..."}</span>
+          {code && <button onClick={copy} aria-label="Copiar código" className="text-slate-300 hover:text-white"><Copy size={18} /></button>}
+        </div>
+        <span className="text-xs text-slate-400">{status}</span>
+      </div>
+
+      {S && S.dice.length > 0 && S.phase !== "lobby" && <><DiceRow dice={S.dice} spin={S.round} used={used} toggle={S.phase === "write" ? (i) => setUsed({ ...used, [i]: !used[i] }) : undefined} /><LupoBanner dice={S.dice} /></>}
+
+      {!S && <p className="text-center text-slate-300 mt-10 animate-pulse">{status}</p>}
+
+      {S?.phase === "lobby" && (
+        <div className="text-center mt-4">
+          <h2 className="logo text-3xl text-amber-400">Lobby</h2>
+          <p className="text-slate-300 mt-1">{isHost ? "Chame a galera com o código da sala." : "Esperando o host começar..."}</p>
+          {isHost && <button onClick={start} className={`${btnGold} mx-auto mt-5`}><Play size={20} />Rolar dados e iniciar rodada</button>}
+        </div>
+      )}
+
+      {S?.phase === "write" && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-slate-300 text-sm">Toque nos dados que já usou</span>
+            <span className={`font-black text-2xl ${left <= 10 ? "text-rose-400" : "text-amber-300"}`}><Clock className="inline mr-1" size={20} />{left}s</span>
+          </div>
+          <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-3"><div className="h-full bg-orange-500 transition-all" style={{ width: `${(left / 120) * 100}%` }} /></div>
+          <textarea value={text} disabled={sent} onChange={(e) => setText(e.target.value)} rows={7} placeholder="Era uma vez..."
+            className="w-full rounded-2xl bg-slate-900 border border-white/10 p-4 text-white outline-none focus:border-amber-400 disabled:opacity-60" />
+          <button disabled={sent || !text.trim()} onClick={submit} className={`${btnGold} mt-3 w-full`}><Send size={20} />{sent ? "Enviada! Aguardando os outros..." : "Enviar Ristória"}</button>
+        </div>
+      )}
+
+      {S?.phase === "vote" && (
+        <div className="mt-5 space-y-3">
+          <h2 className="logo text-2xl text-amber-400 text-center">Qual a mais auruda?</h2>
+          {S.stories.map((st) => {
+            const mine = st.text === myStory.current;
+            return (
+              <div key={st.k} className={`rounded-2xl p-4 border ${myVote === st.k ? "border-amber-400 bg-amber-400/10" : "border-white/10 bg-white/5"}`}>
+                <p className="whitespace-pre-wrap">{st.text}</p>
+                <button disabled={mine || myVote != null} onClick={() => vote(st.k)} className={`${mine || myVote != null ? btnGhost : btnGold} mt-3 !py-2`}>
+                  <Flame size={18} />{mine ? "Sua história" : myVote === st.k ? "Seu voto" : "Mais auruda"}
+                </button>
+              </div>
+            );
+          })}
+          <div className="flex justify-center gap-2 pt-2">{REACTS.map((e) => <button key={e} onClick={() => send({ t: "react", e })} className="text-3xl bg-white/10 rounded-2xl px-3 py-2 hover:scale-110 transition">{e}</button>)}</div>
+        </div>
+      )}
+
+      {S?.phase === "result" && (
+        <div className="mt-5 space-y-3">
+          {S.res.map((r) => (
+            <div key={r.k} className={`rounded-2xl p-4 border ${r.win ? "border-amber-400 bg-amber-400/10" : "border-white/10 bg-white/5"}`}>
+              {r.win && <div className="inline-block bg-amber-400 text-slate-900 font-black rounded-full px-3 py-1 text-sm mb-2">História Mais Auruda 🔥</div>}
+              <p className="whitespace-pre-wrap">{r.text}</p>
+              <div className="flex justify-between mt-3 text-sm text-slate-300"><span>{r.av} <b>{r.name}</b></span><span>{r.votes} voto(s){r.win ? " +3 bônus" : ""}</span></div>
+            </div>
+          ))}
+          {!S.res.length && <p className="text-center text-slate-400">Ninguém enviou história dessa vez.</p>}
+          <div className="flex flex-wrap gap-2 justify-center">
+            {winner && <button disabled={saved} onClick={() => { saveToMural({ text: winner.text, dice: S.dice, author: winner.name, av: winner.av }); setSaved(true); SFX.send(); }} className={btnGhost}><Save size={18} />{saved ? "Salva!" : "Salvar no Mural"}</button>}
+            {isHost ? <button onClick={start} className={btnGold}><Play size={18} />Próxima rodada</button> : <span className="text-slate-400 py-3">Aguardando o host...</span>}
+          </div>
+        </div>
+      )}
+
+      {S && (
+        <div className="mt-8 bg-white/5 rounded-2xl p-3">
+          <div className="flex items-center gap-2 text-slate-300 font-bold text-sm mb-2"><Trophy size={16} className="text-amber-400" />Placar</div>
+          <div className="space-y-1">
+            {[...players].sort((a, b) => b[1].score - a[1].score).map(([id, p]) => (
+              <div key={id} className="flex items-center justify-between">
+                <span>{p.av} {p.name}{id === myId ? " (você)" : ""}{S.phase === "write" && p.done ? " ✅" : ""}{S.phase === "vote" && p.voted ? " ✅" : ""}</span>
+                <b className="text-amber-300">{p.score}</b>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {reacts.map((r) => <span key={r.id} className="fixed bottom-16 text-5xl pointer-events-none" style={{ left: `${r.x}%`, animation: "floatUp 2.6s ease-out forwards" }}>{r.e}</span>)}
+    </div>
+  );
+}
+
+/* ---------- App ---------- */
+function App() {
+  const [cfg, setCfg] = useState({ view: "home" });
+  const home = () => setCfg({ view: "home" });
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 to-indigo-950 text-white" style={{ fontFamily: "'Trebuchet MS', 'Segoe UI', system-ui, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bagel+Fat+One&display=swap');
+        .logo{font-family:'Bagel Fat One','Arial Black',Impact,sans-serif;text-shadow:3px 3px 0 #ea580c,6px 6px 0 rgba(0,0,0,.35);letter-spacing:.5px}
+        @keyframes spinIn{0%{transform:rotate(-300deg) scale(.2);opacity:0}70%{transform:rotate(12deg) scale(1.1);opacity:1}100%{transform:rotate(0) scale(1)}}
+        @keyframes floatUp{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1}100%{transform:translateY(-55vh) scale(1.4);opacity:0}}
+        @keyframes glow{0%,100%{box-shadow:0 6px 0 #a8a29e,0 0 18px 4px rgba(251,191,36,.7)}50%{box-shadow:0 6px 0 #a8a29e,0 0 34px 12px rgba(251,191,36,1)}}
+        .gold-glow{animation:glow 1.4s ease-in-out infinite !important}
+        @media (prefers-reduced-motion:reduce){*{animation:none !important}}
+      `}</style>
+      {cfg.view === "home" && <Home go={setCfg} />}
+      {cfg.view === "solo" && <Solo me={cfg} back={home} />}
+      {cfg.view === "mural" && <Mural back={home} />}
+      {cfg.view === "game" && <Game cfg={cfg} back={home} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
